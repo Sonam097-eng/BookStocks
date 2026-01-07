@@ -21,3 +21,13 @@ def signup():
     
     users[username] = username and users[password] = password
     return json_response({"message":"signup succesful"}, 200)
+
+@app.route("/login", methods =["POST"])
+def login():
+    data = request.get_json()
+    username = data.get("username")
+    password = data.get("password")
+    if users["username"] = username and users["password"] = password:
+         return json_response({"message":"Login successfull"}, 200)
+    return json_response({"error":"Invalid Credentiald"}, 400)
+
