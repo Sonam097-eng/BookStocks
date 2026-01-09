@@ -1,59 +1,100 @@
-from flask import Flask, request, session, Response
+from flask import Flask, request, session, Response,url_for,redirect
 import json
 
 app = Flask(__name__)
-app.secret_key = "mysecret"
 
+def get_all_books(file="database\\books.json"):
+    data={}
+    with open(file,'r')as f:
+        data=f.read()
+    return json.loads(data)
 
+def read_file(path):
+    data={}
+    with open(path,'r')as f:
+        data= f.read()
+    return json.loads(data)
+    
+def write_file(path,data):
+    if type(data) not in [dict,list]:
+        return ({"result":"fail","message":"data is not dict"}, 400)
+    with open(path,'w')as f:
+        f.write(json.dumps(data))
+    return ({"data saved successfully"},200)    
 
+@app.route("/books")
+def books():
+    return(get_all_books)
 
-@app.route("/signup", methods =["POST"])
+@app.route("/signup", methods=["POST"])
 def signup():
-    # To get data
     resp= request.data
     try:
-         resp_data= json.loads(resp.decode("utf-8"))
+        resp_data=json.loads(resp.decode("utf-8"))
     except Exception as e:
-        return({"result": "Fail","message":"Error has occured"}, 400)
-    #reference file
-    def read_file(path):
-        data=[]
-        with open(path, "r")as f:
-            data= f.read()
-            return json.loads(data)
-    def write_file(path,data):
-        if type(data)not in [dict,list]:
-            return{"result":"fail"}
-        with open(path, 'w')as f:
-            f.write(json.dumps(data))
-        return({"message":"Data saved"})    
-
-
-    #checked missing data
+        return ({"result":"fail","message":"data is not json"}, 400)
+    
     missing_data=[]
     if not resp_data.get("username", None):
         missing_data.append("username")
-    if not resp_data.get("password", None):
+    if not resp_data.get("password",None):
         missing_data.append("password")
-
     if missing_data:
-         return({"result":"Fail","message":"Data not found"}, 400)
-    #checking if data matches
-    username= resp_data.get("username", None)
-    password= resp_data.get("password", None)
-
-    #checking if data is there or not
-    logged_data= read_file(path="database\login.json")
-    if logged_data.get("my_data").get("username", None):
-        return{"result":"fail","message":f"{username}username already exist"}
+        return ({"result":"fail","message":"missing data"}, 400)
     
-    logged_data.get("my_data").update({username:password})
-    isSuccess, message= write_file(path="database\login.json",data=logged_data)
+    username=resp_data.get("username")
+    password=resp_data.get("password")
+    if not username or not password:
+        return ({"result":"fail", "message":"Neither username nor password"}, 400)
 
-    if isSuccess:
-        return{"result":"pass","message":f"{username} username update"}
-    return{"result":"fail","message":"updation failed"}
+    logged=read_file(path="database\\login.json")
+
+    if logged.get("my_data").get(username, None):
+        return ({"message":"user already exist"}, 400)
+    
+    logged.get("my_data").update({username:password})
+    if_its_success, message=write_file(path="database\\login.json",data=logged)
+    if if_its_success:
+        return ({"result":"pass"}, 200)
+    return ({"result":"fail"})
+
+@app.route("/login",methods=["POST"])
+def login():
+    resp= request.data
+    try:
+         resp_data=json.loads(resp.decode("utf-8"))
+    except Exception as e:
+        return({"result":"fail","message":"data is not json"})
+    username=resp_data.get("username")
+    password=resp_data.get("password")
+    if not username or not password:
+        return({"result":"fail","message":"Neither username nor password"})
+
+    logged=read_file(path="database\\login.json")
+
+    if logged.get("my_data").get(username)==password:
+        return ({"result":"Pass","message":"you are logged in."})
+    return({"result":"fail","message":"Invalid Credentials"})
+
+@app.route("/books_checkout_after_login", methods=["POST"])
+def books_checkout_after_login():
+    resp= request.data
+    try:
+         resp_data=json.loads(resp.decode("utf-8"))
+    except Exception as e:
+        return({"result":"fail","message":"data is not json"})
+    username=resp_data.get("username")
+    password=resp_data.get("password")
+    if not username or not password:
+        return({"result":"fail","message":"Neither username nor password"})
+
+    logged=read_file(path="database\\login.json")
+    if logged.get("my_data").get(username)==password:
+        return redirect(url_for(books))
 
     
+
+
+
 if __name__ == "__main__":
     app.run(debug =True)
