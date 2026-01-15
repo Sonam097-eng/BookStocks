@@ -79,7 +79,7 @@ def add_book():
     # read the data from file books named books_data
     book_data = read_file(path ="database\\books.json")
     # prepare your data to be added (req_data) and then add new data to books_data eg. prepare your id field that should be len(books_data) + 1
-    new_data.update({"id": len(book_data)+ 1})
+    new_data.update({"id": len(book_data.get("my_data"))+ 1})
     book_data.get("my_data").append(new_data)
 
     # write data to database books_data
@@ -103,9 +103,9 @@ def delete_book(book_id):
     for book in books.get("my_data"):
         if book.get("id") != book_id:
             new_books.append(book)
-    books.update({"my_data": new_books})
     #check whether book is there or not
-    if len(books) != len(new_books):
+    if len(books.get("my_data")) != len(new_books):
+        books.update({"my_data": new_books})
         is_updated, message = write_file(path="database\\books.json", data = books)  
         #if deleted update successfully deleted
         if is_updated:
@@ -113,7 +113,7 @@ def delete_book(book_id):
         #if not then error message
         return ({"result":"fail","message":"Something went wrong"}, 500)
 
-    return ({"result":"fail","message":"book has not fond"}, 400)
+    return ({"result":"fail","message":"book not fond"}, 400)
 
 
 @app.route("/signup",methods=["POST"])
@@ -182,7 +182,24 @@ def login():
         if is_updated:
             return ({"result": "pass","message": "You are Logged In.", "token": token }, 200)
             # if failed then return 500
-        return ({"result":"fail","message":"Something went wrong"},500)    
+        return ({"result":"fail","message":"Something went wrong"},500) 
+
+@app.route("/logout" , methods= ["POST"])
+def logout():
+    is_authorized , message = authorize(request.headers)
+    if not is_authorized:
+        return message
+    token_data = read_file(path="database\\token.json")
+    users_token = request.headers.get("Authorization")
+    remove_value = token_data.get("logged_data").pop(users_token)
+    if  not remove_value:
+        return ({"result":"fail","message":"users_token not found"},200)
+    is_written, message = write_file(path= "database\\token.json", data= token_data)
+    if is_written:
+        return ({"result": "Pass", "message":"logout successfully"})
+    
+    return ({"result":"fail","message":"Something went wrong"},500)  
+
 
 if __name__ == "__main__":
     app.run(debug=True)    
