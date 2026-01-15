@@ -106,7 +106,7 @@ def delete_book(book_id):
     books.update({"my_data": new_books})
     #check whether book is there or not
     if len(books) != len(new_books):
-        is_updated, message = write_file(path="database\\books.json", data = new_books)  
+        is_updated, message = write_file(path="database\\books.json", data = books)  
         #if deleted update successfully deleted
         if is_updated:
             return ({"result": "Pass", "message": f"Book with bookid: {book_id} deleted successfully"}, 200)
