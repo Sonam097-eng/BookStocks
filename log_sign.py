@@ -184,7 +184,7 @@ def login():
             # if failed then return 500
         return ({"result":"fail","message":"Something went wrong"},500) 
 
-@app.route("/logout" , methods= ["POST"])
+@app.route("/logout" , methods= ["DELETE"])
 def logout():
     is_authorized , message = authorize(request.headers)
     if not is_authorized:
