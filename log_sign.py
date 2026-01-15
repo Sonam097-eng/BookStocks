@@ -1,5 +1,5 @@
 from flask import Flask,request
-import json,random
+import json,random,copy
 
 app=Flask(__name__)
 
@@ -75,19 +75,19 @@ def add_book():
 
     if missing_data:
         return ({"result":"fail", "message":f"Data has {missing_data} missing elements"})  
-
+    new_data_duplicate = copy.deepcopy(new_data)
     # read the data from file books named books_data
     book_data = read_file(path ="database\\books.json")
     # prepare your data to be added (req_data) and then add new data to books_data eg. prepare your id field that should be len(books_data) + 1
     new_data.update({"id": len(book_data)+ 1})
+    book_data.get("my_data").append(new_data)
 
     # write data to database books_data
-    book_data.append(new_data)
+    is_updated, message = write_file(path ="database\\books.json", data = book_data)
 
     # if written successfully then return successfully then return req_data
-    is_updated, message = write_file(path ="database\\books.json", data = new_data)
     if is_updated:
-        return (json.dumps(new_data), 201)
+        return (json.dumps(new_data_duplicate), 201)
     # if not able to write it to database then return 500 with a message
     return ({"result":"fail", "message":"Something Went Wrong! Please try again!"}, 500)
 
@@ -100,16 +100,20 @@ def delete_book(book_id):
     books = read_file(path="database\\books.json")
     # delete book_id
     new_books = []
-    for i in books:
-        if i["id"] != book_id:
-            new_books.append(i)
-    update = write_file(path="database\\books.json", data = new_books)  
+    for book in books.get("my_data"):
+        if book.get("id") != book_id:
+            new_books.append(book)
+    books.update({"my_data": new_books})
     #check whether book is there or not
     if len(books) != len(new_books):
-    #if deleted update successfully deleted
-        return (json.dumps(book_id), 200)
-    #if not then error message
-    return ({"result":"fail","message":"book has not fond"},400)
+        is_updated, message = write_file(path="database\\books.json", data = new_books)  
+        #if deleted update successfully deleted
+        if is_updated:
+            return ({"result": "Pass", "message": f"Book with bookid: {book_id} deleted successfully"}, 200)
+        #if not then error message
+        return ({"result":"fail","message":"Something went wrong"}, 500)
+
+    return ({"result":"fail","message":"book has not fond"}, 400)
 
 
 @app.route("/signup",methods=["POST"])
