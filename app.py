@@ -85,13 +85,21 @@ def delete_book(book_id):
     return ({"result":"fail","message":"book not fond"}, 400)
 
 @app.route("/signup",methods=["POST"])
-def signup(req_data):
-    username= req_data.get("username")
-    password= req_data.get("password")
+def signup():
+    req = request.data
+    try:
+        req_data = json.loads(req)
+    except Exception as e:
+        return ({"result":"fail", "message": "Data is not json"}, 404)
+
+    username= request.get("username")
+    password= request.get("password")
+    if not username or not password:
+        return ({"result":"fail", "message": "username or password not provided"}, 404)
     
     logged=read_file(path="database\\login.json")
     if logged.get("my_data").get(username,None):
-        return ({"result":"fail","message":"user already there"})
+        return ({"result":"fail","message":"user already there"}, 409)
     
     logged.get("my_data").update({username:password})
     is_success, message=write_file(path="database\\login.json",data=logged)
