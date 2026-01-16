@@ -1,7 +1,7 @@
 from flask import Flask, request
 import json, copy
 from decorators import validate_user
-from utilities.common_functions import read_file, write_file
+from utilities.common_functions import *
 
 
 app=Flask(__name__)
