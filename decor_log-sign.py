@@ -1,48 +1,19 @@
-from flask import Flask,request
-import json, random, copy
+from flask import Flask, request
+import json, copy
+from decorators import validate_user
+from utilities.common_functions import read_file, write_file
+
 
 app=Flask(__name__)
 
-def authorize(headers:dict):
-    users_token= headers.get("Authorization")
-    if not users_token:
-        return False, ({"result": "fail", "message": " user not authorized"}, 403)
-    token_value=read_file(path="database\\token.json")
-    if token_value.get("logged_data").get(users_token):
-        return True, ({"result":"Pass", "message": "User is Authorized"}, 200)
-    return False, ({"result":"fail", "message": "User not Authorized"}, 401)
-
-def generate_random():
-    return random.randint(1,100)   
-
-def read_file(path):
-    data={}
-    with open(path,'r')as f:
-        data=f.read()
-    return json.loads(data)
-
-def write_file(path,data):
-    if type(data) not in [dict,list]:
-        return ({"result":"fail","message":"data not found"})
-    with open(path, 'w') as f:
-        f.write(json.dumps(data))
-    return ({"Data saved successfully"},200)    
-
 @app.route("/books", methods = ["GET"])
+@validate_user
 def get_books():
-    is_authorized , message = authorize(request.headers)
-    if not is_authorized:
-        return message
-    
     return (read_file(path = "database\\books.json").get("my_data"), 200)
-    
 
 @app.route("/books/<int:book_id>", methods = ["GET"])
+@validate_user 
 def books(book_id):
-    is_authorized , message = authorize(request.headers)
-    if not is_authorized:
-        return message
-
     books = read_file(path = "database\\books.json")
     for i in books.get("my_data"):
         if i.get("id", -1) == book_id:
@@ -50,11 +21,9 @@ def books(book_id):
     return ({"result": "fail", "message": f"No Book found for id: {book_id}"}, 400)
 
 @app.route("/add_book", methods = ["POST"])
+@validate_user
 def add_book():
-    # authorize user
-    is_authorized , message = authorize(request.headers)
-    if not is_authorized:
-        return message
+   
     # take the data out from request named req
     new = request.data
     try:
@@ -93,10 +62,9 @@ def add_book():
     return ({"result":"fail", "message":"Something Went Wrong! Please try again!"}, 500)
 
 @app.route("/books/<int:book_id>" , methods = ["DELETE"])
+@validate_user
 def delete_book(book_id):
-    is_authorized , message = authorize(request.headers)
-    if not is_authorized:
-        return message
+
     # go through data of books
     books = read_file(path="database\\books.json")
     # delete book_id
@@ -117,26 +85,10 @@ def delete_book(book_id):
     return ({"result":"fail","message":"book not fond"}, 400)
 
 @app.route("/signup",methods=["POST"])
-def signup():
-    resp=request.data
-    try:
-        resp_data = json.loads(resp.decode("utf-8"))
-    except Exception as e:
-        return ({"result":"fail","message":"Data is not json"},400)
-    missing_data=[]
-    if not resp_data.get("username",None):
-        missing_data.append("username")
-    if not resp_data.get("password",None):
-        missing_data.append("password")
-
-    if missing_data:
-        return ({"result":"fail","message": f"Required attributes missing: {missing_data}"},400)    
-
-    username=resp_data.get("username")
-    password=resp_data.get("password")
-    if not username or not password:
-        return ({"result":"fail","message":"neither username nor password"},400)
-
+def signup(req_data):
+    username= req_data.get("username")
+    password= req_data.get("password")
+    
     logged=read_file(path="database\\login.json")
     if logged.get("my_data").get(username,None):
         return ({"result":"fail","message":"user already there"})
@@ -161,8 +113,8 @@ def login():
         missing_data.append("password",None)
     if missing_data:
         return ({"result": "fail","message": f"Required attributes missing: {missing_data}"}, 403)
-    username=resp_data.get("username",None)
-    password=resp_data.get("password",None)
+    username=resp_data.get("username", None)
+    password=resp_data.get("password", None)
     if not username or not password:
         return ({"result":"fail","message":"neither username nor password"}, 400)
         
@@ -185,10 +137,8 @@ def login():
         return ({"result":"fail","message":"Something went wrong"},500) 
 
 @app.route("/logout",methods= ["DELETE"])
+@validate_user
 def logout():
-    is_authorized , message = authorize(request.headers)
-    if not is_authorized:
-        return message
     token_data = read_file(path="database\\token.json")
     users_token = request.headers.get("Authorization")
     remove_value = token_data.get("logged_data").pop(users_token)
@@ -203,14 +153,3 @@ def logout():
 
 if __name__ == "__main__":
     app.run(debug=True)    
-
-    
-
-        
-
-
-
-
-
-
-        
