@@ -2,6 +2,7 @@ from flask import Flask, request
 import json, copy
 from decorators import validate_user
 from utilities.common_functions import *
+from werkzeug.security import generate_password_hash, check_password_hash
 
 
 app=Flask(__name__)
@@ -92,16 +93,17 @@ def signup():
     except Exception as e:
         return ({"result":"fail", "message": "Data is not json"}, 404)
 
-    username= request.get("username")
-    password= request.get("password")
+    username= req_data.get("username")
+    password= req_data.get("password")
     if not username or not password:
         return ({"result":"fail", "message": "username or password not provided"}, 404)
     
     logged=read_file(path="database\\login.json")
     if logged.get("my_data").get(username,None):
         return ({"result":"fail","message":"user already there"}, 409)
+    hashed_password = generate_password_hash(password) 
     
-    logged.get("my_data").update({username:password})
+    logged.get("my_data").update({username:hashed_password})
     is_success, message=write_file(path="database\\login.json",data=logged)
     if is_success:
         return ({"result": "pass","message": "You are Logged In."}, 200)
@@ -126,14 +128,18 @@ def login():
     if not username or not password:
         return ({"result":"fail","message":"neither username nor password"}, 400)
         
-    logged=read_file(path="database\\login.json")
-    if logged.get("my_data").get(username) == password:
+    logged = read_file(path="database\\login.json")
+    stored_hashed_password = logged.get("my_data").get(username)
+    if stored_hashed_password and check_password_hash(stored_hashed_password, password):
         # generate token
         token = generate_random()
 
         # read token file
         token_value = read_file(path="database\\token.json")
-
+        if not token_value:
+            token_value = {
+                "logged_data": {}
+            }
         # update token in token_data
         token_value.get("logged_data").update({token: "True"})
         # write updated token_data to file
@@ -143,6 +149,9 @@ def login():
             return ({"result": "pass","message": "You are Logged In.", "token": token }, 200)
             # if failed then return 500
         return ({"result":"fail","message":"Something went wrong"},500) 
+    if not stored_hashed_password:
+        return ({"result":"Fail","message":"Please Signup first!"}, 401)
+    return ({"result":"Fail","message":"Incorrect password"}, 401) 
 
 @app.route("/logout",methods= ["DELETE"])
 @validate_user
