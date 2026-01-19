@@ -1,19 +1,35 @@
 from flask import Flask, request
 import json, copy
+from datetime import timedelta
 from decorators import validate_user
 from utilities.common_functions import *
 from werkzeug.security import generate_password_hash, check_password_hash
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity, get_jwt
 
 
 app=Flask(__name__)
 
+
+app.config["JWT_SECRET_KEY"] = "HIGHLY SECURED KEY"
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(minutes=30)
+jwt = JWTManager(app)
+
+jwt_blocklist = set()
+
+@jwt.token_in_blocklist_loader
+def check_if_token_is_revoked(jwt_header, jwt_payload):
+    jti = jwt_payload["jti"]
+    return jti in jwt_blocklist
+
 @app.route("/books", methods = ["GET"])
-@validate_user
+# @validate_user
+@jwt_required()
 def get_books():
     return (read_file(path = "database\\books.json").get("my_data"), 200)
 
 @app.route("/books/<int:book_id>", methods = ["GET"])
-@validate_user 
+# @validate_user 
+@jwt_required()
 def books(book_id):
     books = read_file(path = "database\\books.json")
     for i in books.get("my_data"):
@@ -22,7 +38,8 @@ def books(book_id):
     return ({"result": "fail", "message": f"No Book found for id: {book_id}"}, 400)
 
 @app.route("/add_book", methods = ["POST"])
-@validate_user
+# @validate_user
+@jwt_required()
 def add_book():
    
     # take the data out from request named req
@@ -63,7 +80,8 @@ def add_book():
     return ({"result":"fail", "message":"Something Went Wrong! Please try again!"}, 500)
 
 @app.route("/books/<int:book_id>" , methods = ["DELETE"])
-@validate_user
+# @validate_user
+@jwt_required()
 def delete_book(book_id):
 
     # go through data of books
@@ -132,40 +150,48 @@ def login():
     stored_hashed_password = logged.get("my_data").get(username)
     if stored_hashed_password and check_password_hash(stored_hashed_password, password):
         # generate token
-        token = generate_random()
+        # token = generate_random()
+        token = create_access_token(identity=username)
 
-        # read token file
-        token_value = read_file(path="database\\token.json")
-        if not token_value:
-            token_value = {
-                "logged_data": {}
-            }
-        # update token in token_data
-        token_value.get("logged_data").update({token: "True"})
-        # write updated token_data to file
-        is_updated, message = write_file(path="database\\token.json", data=token_value)
-            # If success then return 200
-        if is_updated:
-            return ({"result": "pass","message": "You are Logged In.", "token": token }, 200)
-            # if failed then return 500
-        return ({"result":"fail","message":"Something went wrong"},500) 
+        # # read token file
+        # token_value = read_file(path="database\\token.json")
+        # if not token_value:
+        #     token_value = {
+        #         "logged_data": {}
+        #     }
+        # # update token in token_data
+        # token_value.get("logged_data").update({token: "True"})
+        # # write updated token_data to file
+        # is_updated, message = write_file(path="database\\token.json", data=token_value)
+        #     # If success then return 200
+        # if is_updated:
+        #     return ({"result": "pass","message": "You are Logged In.", "token": token }, 200)
+        #     # if failed then return 500
+        # return ({"result":"fail","message":"Something went wrong"},500)
+        return ({"result": "pass", "message": f"{username}, Logged In successfully!", "token": token}, 200)
+
     if not stored_hashed_password:
         return ({"result":"Fail","message":"Please Signup first!"}, 401)
     return ({"result":"Fail","message":"Incorrect password"}, 401) 
 
 @app.route("/logout",methods= ["DELETE"])
-@validate_user
+# @validate_user
+@jwt_required()
 def logout():
-    token_data = read_file(path="database\\token.json")
-    users_token = request.headers.get("Authorization")
-    remove_value = token_data.get("logged_data").pop(users_token)
-    if  not remove_value:
-        return ({"result":"fail","message":"users_token not found"},200)
-    is_written, message = write_file(path= "database\\token.json", data= token_data)
-    if is_written:
-        return ({"result": "Pass", "message":"logout successfully"})
+    # token_data = read_file(path="database\\token.json")
+    # users_token = request.headers.get("Authorization")
+    # remove_value = token_data.get("logged_data").pop(users_token)
+    # if  not remove_value:
+    #     return ({"result":"fail","message":"users_token not found"},200)
+    # is_written, message = write_file(path= "database\\token.json", data= token_data)
+    # if is_written:
+    #     return ({"result": "Pass", "message":"logout successfully"})
     
-    return ({"result":"fail","message":"Something went wrong"},500)  
+    # return ({"result":"fail","message":"Something went wrong"},500)  
+
+    jti = get_jwt()["jti"]
+    jwt_blocklist.add(jti)
+    return ({"result":"Pass","message":"Successfully Logged out"}, 200)
 
 
 if __name__ == "__main__":
