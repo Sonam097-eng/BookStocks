@@ -1,19 +1,37 @@
 from flask import Flask, request
-import json, copy
-from decorators import validate_user
-from utilities.common_functions import *
-from werkzeug.security import generate_password_hash, check_password_hash
+import json
+from werkzeug.security import check_password_hash,generate_password_hash
+from datetime import timedelta, datetime
+from flask_jwt_extended import JWTManager, create_access_token,create_refresh_token, jwt_required, get_jwt_identity, get_jwt
+from utilities.common_functions import read_file, write_file
 
+app= Flask(__name__)
 
-app=Flask(__name__)
+app.config["JWT_SECRET_KEY"] = "HIGHLY SECURED KEY"
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(minutes=30)
+app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(days= 30)
+jwt= JWTManager(app)
+jwt_blocklist = set()
+
+@jwt.token_in_blocklist_loader
+def check_if_token_is_revoked(jwt_header, jwt_payloader):
+    jti = jwt_payloader.get("jti")
+    return jti in jwt_blocklist
+
+@app.route("/refresh", methods= ["POST"])
+@jwt_required(refresh= True)
+def refresh():
+    username= get_jwt_identity()
+    new_token= create_access_token(identity= username)
+    return ({"result":"pass","token": new_token})
 
 @app.route("/books", methods = ["GET"])
-@validate_user
+@jwt_required()
 def get_books():
     return (read_file(path = "database\\books.json").get("my_data"), 200)
 
 @app.route("/books/<int:book_id>", methods = ["GET"])
-@validate_user 
+@jwt_required()
 def books(book_id):
     books = read_file(path = "database\\books.json")
     for i in books.get("my_data"):
@@ -22,7 +40,7 @@ def books(book_id):
     return ({"result": "fail", "message": f"No Book found for id: {book_id}"}, 400)
 
 @app.route("/add_book", methods = ["POST"])
-@validate_user
+@jwt_required()
 def add_book():
    
     # take the data out from request named req
@@ -63,7 +81,7 @@ def add_book():
     return ({"result":"fail", "message":"Something Went Wrong! Please try again!"}, 500)
 
 @app.route("/books/<int:book_id>" , methods = ["DELETE"])
-@validate_user
+@jwt_required()
 def delete_book(book_id):
 
     # go through data of books
@@ -85,29 +103,29 @@ def delete_book(book_id):
 
     return ({"result":"fail","message":"book not fond"}, 400)
 
-@app.route("/signup",methods=["POST"])
+@app.route("/signup", methods= ["POST"])
 def signup():
     req = request.data
     try:
-        req_data = json.loads(req)
+        req_data= json.loads(req.decode("utf-8"))
     except Exception as e:
-        return ({"result":"fail", "message": "Data is not json"}, 404)
+        return ({"result":"fail", "message":"Data is not json"}, 400)
 
     username= req_data.get("username")
     password= req_data.get("password")
+
     if not username or not password:
-        return ({"result":"fail", "message": "username or password not provided"}, 404)
-    
-    logged=read_file(path="database\\login.json")
-    if logged.get("my_data").get(username,None):
-        return ({"result":"fail","message":"user already there"}, 409)
-    hashed_password = generate_password_hash(password) 
-    
+        return ({"result":"fail", "message":"Neither username nor password"},403)
+    logged = read_file(path= "database\\login.json")
+    if logged.get("my_data").get("username"):
+        return ({"result":"fail", "message":"user already exist"},403)
+    hashed_password= generate_password_hash(password)
+
     logged.get("my_data").update({username:hashed_password})
-    is_success, message=write_file(path="database\\login.json",data=logged)
-    if is_success:
-        return ({"result": "pass","message": "You are Logged In."}, 200)
-    return ({"result":"fail","message":"Something went wrong! Please try Again!"}, 500)
+    is_update,message = write_file(path= "database\\login.json", data =logged)
+    if is_update:
+        return ({"result":"pass", "message":"You are Logged In"}, 200)
+    return ({"result":"fail", "message":"something went wrong"},403)
 
 @app.route("/login",methods=["POST"])
 def login():
@@ -131,42 +149,27 @@ def login():
     logged = read_file(path="database\\login.json")
     stored_hashed_password = logged.get("my_data").get(username)
     if stored_hashed_password and check_password_hash(stored_hashed_password, password):
-        # generate token
-        token = generate_random()
+        token = create_access_token(identity=username)
+        refresh_token= create_refresh_token(identity=username)
 
-        # read token file
-        token_value = read_file(path="database\\token.json")
-        if not token_value:
-            token_value = {
-                "logged_data": {}
-            }
-        # update token in token_data
-        token_value.get("logged_data").update({token: "True"})
-        # write updated token_data to file
-        is_updated, message = write_file(path="database\\token.json", data=token_value)
-            # If success then return 200
-        if is_updated:
-            return ({"result": "pass","message": "You are Logged In.", "token": token }, 200)
-            # if failed then return 500
-        return ({"result":"fail","message":"Something went wrong"},500) 
+        return ({"result":"pass", "message":f"{username}!You are Logged In", "token":token, "refresh_token": refresh_token}, 200)
     if not stored_hashed_password:
-        return ({"result":"Fail","message":"Please Signup first!"}, 401)
-    return ({"result":"Fail","message":"Incorrect password"}, 401) 
+        return ({"result":"fail", "message":"please signup first"}, 400)
+    return ({"result":"fail", "message":"something went wrong"}, 403)
 
-@app.route("/logout",methods= ["DELETE"])
-@validate_user
+@app.route("/logout", methods= ["DELETE"])
+@jwt_required()
 def logout():
-    token_data = read_file(path="database\\token.json")
-    users_token = request.headers.get("Authorization")
-    remove_value = token_data.get("logged_data").pop(users_token)
-    if  not remove_value:
-        return ({"result":"fail","message":"users_token not found"},200)
-    is_written, message = write_file(path= "database\\token.json", data= token_data)
-    if is_written:
-        return ({"result": "Pass", "message":"logout successfully"})
-    
-    return ({"result":"fail","message":"Something went wrong"},500)  
+    jti = get_jwt()["jti"]
+    jwt_blocklist.add(jti)
+    return ({"result":"pass", "message":"You are successfully logged out"}, 200)
 
+@app.route("/refresh_logout", methods= ["DELETE"])
+@jwt_required(refresh=True)
+def refresh_logout():
+    jti_data = get_jwt()
+    jwt_blocklist.add(jti_data["jti"])
+    return ({"result":"pass", "message":"You are successfully logged out"}, 200)
 
 if __name__ == "__main__":
-    app.run(debug=True)    
+    app.run(debug = True)

@@ -1,5 +1,1 @@
-{
-    "my_data": {
-        "chipku": "scrypt:32768:8:1$8Ol6kGW9MmpiViPj$6a01acbd9b448bfb856e1cb7b66ea57445cafb02c60647a96ac9a9acbb6232a8264b54c8638b51877a3f70b180aa6e6c6ca704b063770072d631ef637657a939"
-    }
-}
+{"my_data": {"chipku": "scrypt:32768:8:1$E1dOl5PjCNsJ2O9l$568019f17e27ca14ed11087a29b539f785e7acef5f5131fd3c7ab50f1ae87b77d12807eb39fbbff2e3dc95bb9631b511a08b317f43c40cfe235ea3ae8a749e02"}}
